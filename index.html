@@ -22,7 +22,10 @@
 <script>
     async function generateSitemap() {
         const siteUrl = document.getElementById('siteUrl').value;
-        if (!siteUrl) return alert('请输入有效URL');
+        if (!siteUrl || !siteUrl.startsWith('http')) {
+            alert('请输入有效的URL');
+            return;
+        }
 
         try {
             const response = await fetch('/.netlify/functions/generate-sitemap', {
@@ -43,6 +46,7 @@
             }
         } catch (error) {
             console.error('Error:', error);
+            document.getElementById('result').innerHTML = '生成失败：' + error.message;
         }
     }
 </script>
