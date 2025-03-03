@@ -7,15 +7,15 @@
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; }
         .container { padding: 20px; border: 1px solid #ddd; }
         .logo { color: #2c7be5; font-weight: bold; }
-         /* 加载动画样式 */
-         #loading {
-             display: none; /* 默认隐藏 */
-             position: fixed;
-             top: 50%;
-             left: 50%;
-             transform: translate(-50%, -50%);
-             font-size: 24px;
-         }
+        /* 加载动画样式 */
+        #loading {
+            display: none; /* 默认隐藏 */
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+        }
     </style>
 </head>
 <body>
@@ -23,11 +23,6 @@
     <h1 class="logo">ClutchoQ</h1>
     <h2>Sitemap生成工具</h2>
     <input type="url" id="siteUrl" placeholder="请输入网站URL (例: https://cn.trustexporter.com)">
-    <select id="format">
-        <option value="xml">XML</option>
-        <option value="txt">TXT</option>
-        <option value="html">HTML</option>
-    </select>
     <button onclick="generateSitemap()">生成Sitemap</button>
     <div id="result"></div>
 </div>
@@ -35,7 +30,6 @@
 <script>
     async function generateSitemap() {
         const siteUrl = document.getElementById('siteUrl').value;
-        const format = document.getElementById('format').value;
 
         if (!siteUrl || !siteUrl.startsWith('http')) {
             alert('请输入有效的URL');
@@ -49,13 +43,13 @@
             const response = await fetch('/.netlify/functions/generate-sitemap', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: siteUrl, format: format })
+                body: JSON.stringify({ url: siteUrl })
             });
-            const blob = new Blob([await response.text()], { type: format === 'html' ? 'text/html' : 'text/plain' });
+            const blob = new Blob([await response.arrayBuffer()], { type: 'application/zip' }); // 处理为ZIP文件
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `sitemap.${format}`;
+            a.download = `${new URL(siteUrl).hostname}-sitemap.zip`; // 使用域名作为文件名
             a.click();
         } catch (error) {
             console.error('Error:', error);

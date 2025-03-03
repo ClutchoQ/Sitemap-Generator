@@ -1,11 +1,12 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
+const archiver = require('archiver');
 
 exports.handler = async (event) => {
     try {
-        const { url, format } = JSON.parse(event.body);
+        const { url } = JSON.parse(event.body);
 
-        // 检查 URL 是否为空或无效
+        // 检查URL是否为空或无效
         if (!url || !url.startsWith('http')) {
             return { statusCode: 400, body: JSON.stringify({ error: 'Invalid URL' }) };
         }
@@ -13,18 +14,27 @@ exports.handler = async (event) => {
         const response = await axios.get(url);
         const $ = cheerio.load(response.data);
 
-        // 提取所有链接
-        let links = [];
+        let links = new Set();
         $('a').each((i, elem) => {
             const href = $(elem).attr('href');
-            if (href && href.startsWith('/')) links.push(new URL(href, url).href);
+            if (href && href.startsWith('/')) links.add(new URL(href, url).href);
+        });
+        links = Array.from(links);
+
+        // 创建zip文件内容
+        const output = new stream.PassThrough();
+        const archive = archiver('zip', {
+            zlib: { level: 9 } // 设置压缩级别
         });
 
-        // 根据请求的格式生成输出内容
-        let outputContent;
-        switch(format.toLowerCase()) {
-            case 'xml':
-                outputContent = `<?xml version="1.0" encoding="UTF-8"?>
+        archive.on('error', function(err){
+            throw err;
+        });
+
+        archive.pipe(output);
+
+        // 添加XML文件到压缩包
+        archive.append(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     ${links.map(link => `
     <url>
@@ -33,13 +43,13 @@ exports.handler = async (event) => {
         <changefreq>daily</changefreq>
         <priority>0.8</priority>
     </url>`).join('')}
-</urlset>`;
-                break;
-            case 'txt':
-                outputContent = links.join('\n');
-                break;
-            case 'html':
-                outputContent = `<html>
+</urlset>`, { name: 'sitemap.xml' });
+
+        // 添加TXT文件到压缩包
+        archive.append(links.join('\n'), { name: 'sitemap.txt' });
+
+        // 添加HTML文件到压缩包
+        archive.append(`<html>
 <head><title>Sitemap</title></head>
 <body>
 <h1>Site Links</h1>
@@ -47,19 +57,30 @@ exports.handler = async (event) => {
 ${links.map(link => `<li><a href="${link}" target="_blank">${link}</a></li>`).join('')}
 </ul>
 </body>
-</html>`;
-                break;
-            default:
-                return { statusCode: 400, body: JSON.stringify({ error: 'Unsupported format' }) };
-        }
+</html>`, { name: 'sitemap.html' });
+
+        await archive.finalize();
 
         return {
             statusCode: 200,
-            headers: { 'Content-Type': format === 'html' ? 'text/html' : 'text/plain' },
-            body: outputContent
+            headers: {
+                'Content-Type': 'application/zip',
+                'Content-Disposition': `attachment; filename=${new URL(url).hostname}-sitemap.zip`
+            },
+            body: await streamToString(output)
         };
     } catch (error) {
         console.error('Error:', error);
         return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
     }
 };
+
+// 辅助函数：将流转换为字符串
+async function streamToString(stream) {
+    const chunks = [];
+    return new Promise((resolve, reject) => {
+        stream.on('data', chunk => chunks.push(Buffer.from(chunk)));
+        stream.on('error', reject);
+        stream.on('end', () => resolve(Buffer.concat(chunks).toString('base64')));
+    });
+}
