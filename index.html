@@ -2,51 +2,67 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>在线Sitemap生成工具 - 深圳市兴通物联科技有限公司</title>
+    <title>在线Sitemap生成工具 - ClutchoQ</title>
     <style>
-        /* 添加品牌样式 */
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; }
         .container { padding: 20px; border: 1px solid #ddd; }
         .logo { color: #2c7be5; font-weight: bold; }
+         /* 加载动画样式 */
+         #loading {
+             display: none; /* 默认隐藏 */
+             position: fixed;
+             top: 50%;
+             left: 50%;
+             transform: translate(-50%, -50%);
+             font-size: 24px;
+         }
     </style>
 </head>
 <body>
 <div class="container">
-    <h1 class="logo">深圳市兴通物联科技</h1>
+    <h1 class="logo">ClutchoQ</h1>
     <h2>Sitemap生成工具</h2>
     <input type="url" id="siteUrl" placeholder="请输入网站URL (例: https://cn.trustexporter.com)">
-    <button onclick="generateSitemap()">生成Sitemap.xml</button>
+    <select id="format">
+        <option value="xml">XML</option>
+        <option value="txt">TXT</option>
+        <option value="html">HTML</option>
+    </select>
+    <button onclick="generateSitemap()">生成Sitemap</button>
     <div id="result"></div>
 </div>
-
+<div id="loading">正在生成 Sitemap，请稍候...</div>
 <script>
     async function generateSitemap() {
         const siteUrl = document.getElementById('siteUrl').value;
+        const format = document.getElementById('format').value;
+
         if (!siteUrl || !siteUrl.startsWith('http')) {
             alert('请输入有效的URL');
             return;
         }
 
+        // 显示加载动画
+        document.getElementById('loading').style.display = 'block';
+
         try {
             const response = await fetch('/.netlify/functions/generate-sitemap', {
                 method: 'POST',
-                body: JSON.stringify({ url: siteUrl })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: siteUrl, format: format })
             });
-            const data = await response.json();
-
-            if (data.xmlContent) {
-                const blob = new Blob([data.xmlContent], { type: 'application/xml' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'sitemap.xml';
-                a.click();
-            } else {
-                document.getElementById('result').innerHTML = '生成失败：' + data.error;
-            }
+            const blob = new Blob([await response.text()], { type: format === 'html' ? 'text/html' : 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sitemap.${format}`;
+            a.click();
         } catch (error) {
             console.error('Error:', error);
             document.getElementById('result').innerHTML = '生成失败：' + error.message;
+        } finally {
+            // 隐藏加载动画
+            document.getElementById('loading').style.display = 'none';
         }
     }
 </script>
