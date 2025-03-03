@@ -4,6 +4,12 @@ const cheerio = require('cheerio');
 exports.handler = async (event) => {
     try {
         const { url } = JSON.parse(event.body);
+
+        // 检查 URL 是否为空或无效
+        if (!url || !url.startsWith('http')) {
+            return { statusCode: 400, body: JSON.stringify({ error: 'Invalid URL' }) };
+        }
+
         const response = await axios.get(url);
         const $ = cheerio.load(response.data);
 
@@ -31,6 +37,7 @@ exports.handler = async (event) => {
             body: JSON.stringify({ xmlContent: xml })
         };
     } catch (error) {
+        console.error('Error:', error);
         return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
     }
 };
