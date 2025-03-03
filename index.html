@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>在线Sitemap生成工具 - 深圳市兴通物联科技有限公司</title>
+    <style>
+        /* 添加品牌样式 */
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 20px auto; }
+        .container { padding: 20px; border: 1px solid #ddd; }
+        .logo { color: #2c7be5; font-weight: bold; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1 class="logo">深圳市兴通物联科技</h1>
+    <h2>Sitemap生成工具</h2>
+    <input type="url" id="siteUrl" placeholder="请输入网站URL (例: https://cn.trustexporter.com)">
+    <button onclick="generateSitemap()">生成Sitemap.xml</button>
+    <div id="result"></div>
+</div>
+
+<script>
+    async function generateSitemap() {
+        const siteUrl = document.getElementById('siteUrl').value;
+        if (!siteUrl) return alert('请输入有效URL');
+
+        try {
+            const response = await fetch('/.netlify/functions/generate-sitemap', {
+                method: 'POST',
+                body: JSON.stringify({ url: siteUrl })
+            });
+            const data = await response.json();
+
+            if (data.xmlContent) {
+                const blob = new Blob([data.xmlContent], { type: 'application/xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'sitemap.xml';
+                a.click();
+            } else {
+                document.getElementById('result').innerHTML = '生成失败：' + data.error;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+</script>
+</body>
+</html>
