@@ -1,6 +1,14 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const archiver = require('archiver');
+const stream = require('stream');
+const { promisify } = require('util');
+
+// 将流转换为字符串的辅助函数
+async function streamToBase64(stream) {
+    const buffer = await promisify(stream.pipe.bind(stream))(new stream.PassThrough());
+    return buffer.toString('base64');
+}
 
 exports.handler = async (event) => {
     try {
@@ -22,16 +30,17 @@ exports.handler = async (event) => {
         links = Array.from(links);
 
         // 创建zip文件内容
-        const output = new stream.PassThrough();
         const archive = archiver('zip', {
             zlib: { level: 9 } // 设置压缩级别
         });
+
+        const passThroughStream = new stream.PassThrough();
 
         archive.on('error', function(err){
             throw err;
         });
 
-        archive.pipe(output);
+        archive.pipe(passThroughStream);
 
         // 添加XML文件到压缩包
         archive.append(`<?xml version="1.0" encoding="UTF-8"?>
@@ -61,26 +70,19 @@ ${links.map(link => `<li><a href="${link}" target="_blank">${link}</a></li>`).jo
 
         await archive.finalize();
 
+        const base64Data = await streamToBase64(passThroughStream);
+
         return {
             statusCode: 200,
             headers: {
                 'Content-Type': 'application/zip',
                 'Content-Disposition': `attachment; filename=${new URL(url).hostname}-sitemap.zip`
             },
-            body: await streamToString(output)
+            body: base64Data,
+            isBase64Encoded: true // 标记body是Base64编码的
         };
     } catch (error) {
         console.error('Error:', error);
         return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
     }
 };
-
-// 辅助函数：将流转换为字符串
-async function streamToString(stream) {
-    const chunks = [];
-    return new Promise((resolve, reject) => {
-        stream.on('data', chunk => chunks.push(Buffer.from(chunk)));
-        stream.on('error', reject);
-        stream.on('end', () => resolve(Buffer.concat(chunks).toString('base64')));
-    });
-}
