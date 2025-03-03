@@ -4,17 +4,19 @@ const archiver = require('archiver');
 const stream = require('stream');
 const { promisify } = require('util');
 
-// 将流转换为字符串的辅助函数
-async function streamToBase64(stream) {
-    const buffer = await promisify(stream.pipe.bind(stream))(new stream.PassThrough());
-    return buffer.toString('base64');
+async function collectStream(stream) {
+    return new Promise((resolve, reject) => {
+        const chunks = [];
+        stream.on('data', chunk => chunks.push(Buffer.from(chunk)));
+        stream.on('error', reject);
+        stream.on('end', () => resolve(Buffer.concat(chunks)));
+    });
 }
 
 exports.handler = async (event) => {
     try {
         const { url } = JSON.parse(event.body);
 
-        // 检查URL是否为空或无效
         if (!url || !url.startsWith('http')) {
             return { statusCode: 400, body: JSON.stringify({ error: 'Invalid URL' }) };
         }
@@ -29,14 +31,11 @@ exports.handler = async (event) => {
         });
         links = Array.from(links);
 
-        // 创建zip文件内容
-        const archive = archiver('zip', {
-            zlib: { level: 9 } // 设置压缩级别
-        });
+        const archive = archiver('zip', { zlib: { level: 9 } });
 
         const passThroughStream = new stream.PassThrough();
 
-        archive.on('error', function(err){
+        archive.on('error', err => {
             throw err;
         });
 
@@ -70,7 +69,7 @@ ${links.map(link => `<li><a href="${link}" target="_blank">${link}</a></li>`).jo
 
         await archive.finalize();
 
-        const base64Data = await streamToBase64(passThroughStream);
+        const buffer = await collectStream(passThroughStream);
 
         return {
             statusCode: 200,
@@ -78,8 +77,8 @@ ${links.map(link => `<li><a href="${link}" target="_blank">${link}</a></li>`).jo
                 'Content-Type': 'application/zip',
                 'Content-Disposition': `attachment; filename=${new URL(url).hostname}-sitemap.zip`
             },
-            body: base64Data,
-            isBase64Encoded: true // 标记body是Base64编码的
+            body: buffer.toString('base64'),
+            isBase64Encoded: true
         };
     } catch (error) {
         console.error('Error:', error);
