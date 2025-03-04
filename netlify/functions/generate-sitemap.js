@@ -47,8 +47,6 @@ exports.handler = async (event) => {
     ${links.map(link => `
     <url>
         <loc>${link}</loc>
-        <lastmod>${new Date().toISOString()}</lastmod>
-        <changefreq>daily</changefreq>
         <priority>0.8</priority>
     </url>`).join('')}
 </urlset>`, { name: 'sitemap.xml' });
